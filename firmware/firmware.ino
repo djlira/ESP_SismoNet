@@ -8,12 +8,12 @@ const char* ssid = "INFINITUM1B9E_2.4";
 const char* password = "LDg2XDDMnR";
 
 // URLs para descargar la versión y el firmware
-const char* versionURL = "https://raw.githubusercontent.com/djlira/ESP_SismoNet/main/firmware/version.txt.txt";
+const char* versionURL = "https://raw.githubusercontent.com/djlira/ESP_SismoNet/main/firmware/version.txt";
 
 const char* firmwareURL = "https://raw.githubusercontent.com/djlira/ESP_SismoNet/main/firmware/build/esp32.esp32.lilygo_t_display/firmware.bin";
 
 // Versión actual del firmware (debe coincidir con el valor en el ESP32)
-const String currentVersion = "1.0.2";
+const String currentVersion = "1.0.1";
 
 void setup() {
   Serial.begin(115200);
