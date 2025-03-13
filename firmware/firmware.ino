@@ -2,71 +2,75 @@
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <Update.h>
-#include <HTTPUpdate.h>
 
 // Configuración de Wi-Fi
 const char* ssid = "INFINITUM1B9E_2.4";
 const char* password = "LDg2XDDMnR";
 
-// URLs de GitHub
-const char* baseURL = "https://raw.githubusercontent.com/djlira/ESP_SismoNet/main/firmware/";
-String versionURL = String(baseURL) + "version.txt";
-String firmwareURL = String(baseURL) + "build/esp32.esp32.lilygo_t_display/firmware.ino.bin";
+// URLs del servidor
+const char* versionURL = "https://raw.githubusercontent.com/djlira/ESP_SismoNet/main/firmware/version.txt";
+const char* firmwareURL = "https://raw.githubusercontent.com/djlira/ESP_SismoNet/main/firmware/build/esp32.esp32.lilygo_t_display/firmware.ino.bin";
 
-// Versión actual del firmware
+// Versión actual del ESP32 (debe coincidir con el `version.txt`)
 const String currentVersion = "1.0.1";
 
 void setup() {
   Serial.begin(115200);
+  Serial.println("\nIniciando ESP32...");
+
   WiFi.begin(ssid, password);
 
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
-    Serial.println("Conectando a WiFi...");
+    Serial.print(".");
   }
-  Serial.println("Conectado a WiFi");
+  Serial.println("\nConectado a WiFi");
 
   checkForUpdates();
 }
 
 void loop() {
-  // Tu código principal aquí...
+  // Puede ejecutarse cada cierto tiempo si deseas verificar periódicamente
 }
 
 void checkForUpdates() {
-  Serial.println("Verificando actualizaciones...");
+  Serial.println("\nVerificando actualizaciones...");
 
-  // Descargar la versión disponible en GitHub
   String latestVersion = downloadVersion();
-  Serial.println("Versión actual: " + currentVersion);
-  Serial.println("Versión disponible: " + latestVersion);
 
-  // Comparar versiones
-  if (latestVersion != currentVersion && latestVersion != "") {
-    Serial.println("Nueva versión disponible. Actualizando...");
+  Serial.println("Versión actual del ESP32: " + currentVersion);
+  Serial.println("Versión obtenida del servidor: " + latestVersion);
+
+  if (latestVersion.length() == 0) {
+    Serial.println("Error: No se pudo obtener la versión.");
+    return;
+  }
+
+  if (latestVersion != currentVersion) {
+    Serial.println("Nueva versión detectada. Iniciando actualización...");
     updateFirmware();
   } else {
-    Serial.println("El firmware está actualizado.");
+    Serial.println("El firmware ya está actualizado.");
   }
 }
 
 String downloadVersion() {
   WiFiClientSecure client;
-  client.setInsecure(); // Desactiva la verificación SSL
+  client.setInsecure();  // Deshabilita verificación SSL/TLS
 
   HTTPClient http;
-  String url = versionURL + "?nocache=" + String(millis()); // Evitar caché
-  http.begin(client, url);
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  Serial.println("Descargando versión desde: " + String(versionURL));
+  http.begin(client, versionURL);
 
   int httpCode = http.GET();
   String version = "";
 
   if (httpCode == HTTP_CODE_OK) {
     version = http.getString();
-    version.trim(); // Limpiar espacios y saltos de línea
+    version.trim();  // Eliminar espacios y saltos de línea
+    Serial.println("Versión descargada: " + version);
   } else {
-    Serial.println("Error al descargar version.txt. Código: " + String(httpCode));
+    Serial.println("Error al descargar version.txt. Código HTTP: " + String(httpCode));
   }
 
   http.end();
@@ -74,37 +78,49 @@ String downloadVersion() {
 }
 
 void updateFirmware() {
-  Serial.println("Descargando firmware...");
+  Serial.println("Descargando firmware desde: " + String(firmwareURL));
 
   WiFiClientSecure client;
-  client.setInsecure(); // Desactiva la verificación SSL
+  client.setInsecure();
 
-  String url = firmwareURL + "?nocache=" + String(millis()); // Evitar caché
-
-  t_httpUpdate_return ret = UpdateFirmware(client, url);
-
-  switch (ret) {
-    case HTTP_UPDATE_FAILED:
-      Serial.printf("Error en la actualización: %s\n", httpUpdate.getLastErrorString().c_str());
-
-      break;
-
-    case HTTP_UPDATE_NO_UPDATES:
-      Serial.println("No hay actualizaciones disponibles.");
-      break;
-
-    case HTTP_UPDATE_OK:
-      Serial.println("Actualización exitosa. Reiniciando...");
-      ESP.restart();
-      break;
-  }
-}
-
-t_httpUpdate_return UpdateFirmware(WiFiClientSecure &client, String url) {
   HTTPClient http;
-  http.begin(client, url);
-  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+  http.begin(client, firmwareURL);
+  int httpCode = http.GET();
 
-  Serial.println("Iniciando actualización...");
-  return httpUpdate.update(client, url);
+  if (httpCode != HTTP_CODE_OK) {
+    Serial.println("Error al descargar el firmware. Código HTTP: " + String(httpCode));
+    http.end();
+    return;
+  }
+
+  int contentLength = http.getSize();
+  if (contentLength <= 0) {
+    Serial.println("Error: Tamaño del firmware inválido.");
+    http.end();
+    return;
+  }
+
+  Serial.println("Tamaño del firmware: " + String(contentLength) + " bytes");
+
+  bool canBegin = Update.begin(contentLength);
+  if (!canBegin) {
+    Serial.println("Error: No se pudo iniciar la actualización.");
+    http.end();
+    return;
+  }
+
+  Serial.println("Escribiendo firmware...");
+  WiFiClient* stream = http.getStreamPtr();
+  size_t written = Update.writeStream(*stream);
+
+  if (written == contentLength) {
+    Serial.println("Firmware escrito correctamente. Reiniciando...");
+    Update.end();
+    ESP.restart();
+  } else {
+    Serial.println("Error: No se escribió el firmware completamente.");
+    Update.end();
+  }
+
+  http.end();
 }
