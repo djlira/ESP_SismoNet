@@ -13,7 +13,7 @@ const char* versionURL = "https://raw.githubusercontent.com/djlira/ESP_SismoNet/
 const char* firmwareURL = "https://raw.githubusercontent.com/djlira/ESP_SismoNet/main/firmware/build/esp32.esp32.lilygo_t_display/firmware.bin";
 
 // Versión actual del firmware (debe coincidir con el valor en el ESP32)
-const String currentVersion = "1.0.2";
+const String currentVersion = "1.0.1";
 
 void setup() {
   Serial.begin(115200);
